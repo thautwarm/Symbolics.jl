@@ -16,8 +16,10 @@ import SymbolicUtils.Rewriters: Chain, Prewalk, Postwalk, Fixpoint
 
 import SymbolicUtils.Code: toexpr
 
-using RuntimeGeneratedFunctions
-RuntimeGeneratedFunctions.init(@__MODULE__)
+import GeneralizedGenerated
+
+mk_function(mod::Module, ex) = GeneralizedGenerated.mk_function(mod, ex)
+mk_function(ex) = mk_function(@__MODULE__, ex)
 
 # re-export
 

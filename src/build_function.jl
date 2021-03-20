@@ -91,15 +91,13 @@ function _build_function(target::JuliaTarget, op, args...;
 end
 
 function _build_and_inject_function(mod::Module, ex)
-    if ex.head == :function && ex.args[1].head == :tuple
-        ex.args[1] = Expr(:call, :($mod.$(gensym())), ex.args[1].args...)
-    elseif ex.head == :(->)
+    if ex.head == :(->)
         return _build_and_inject_function(mod, Expr(:function, ex.args...))
     end
     # XXX: Workaround to specify the module as both the cache module AND context module.
     # Currently, the @RuntimeGeneratedFunction macro only sets the context module.
-    module_tag = getproperty(mod, RuntimeGeneratedFunctions._tagname)
-    RuntimeGeneratedFunctions.RuntimeGeneratedFunction(module_tag, module_tag, ex)
+    
+    mk_function(mod, ex)
 end
 
 toexpr(n::Num, st) = toexpr(value(n), st)
@@ -229,7 +227,7 @@ function toexpr(p::SpawnFetch{MultithreadedForm}, st)
     args = isnothing(p.args) ?
               Iterators.repeated((), length(p.exprs)) : p.args
     spawns = map(p.exprs, args) do thunk, a
-        ex = :($Funcall($(@RuntimeGeneratedFunction(toexpr(thunk, st))),
+        ex = :($Funcall($(mk_function(toexpr(thunk, st))),
                        ($(toexpr.(a, (st,))...),)))
         quote
             let
@@ -473,7 +471,7 @@ function _build_function(target::CTarget, eqs::Array{<:Equation}, args...;
         open(`gcc -fPIC -O3 -msse3 -xc -shared -o $(libpath * "." * Libdl.dlext) -`, "w") do f
             print(f, ex)
         end
-        @RuntimeGeneratedFunction(:((du::Array{Float64},u::Array{Float64},p::Array{Float64},t::Float64) -> ccall(("diffeqf", $libpath), Cvoid, (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Float64), du, u, p, t)))
+        mk_function(:((du::Array{Float64},u::Array{Float64},p::Array{Float64},t::Float64) -> ccall(("diffeqf", $libpath), Cvoid, (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Float64), du, u, p, t)))
     end
 end
 
@@ -549,7 +547,7 @@ function _build_function(target::CTarget, ex::AbstractArray, args...;
         open(`gcc -fPIC -O3 -msse3 -xc -shared -o $(libpath * "." * Libdl.dlext) -`, "w") do f
             print(f, ccode)
         end
-        @RuntimeGeneratedFunction(:((du::Array{Float64},u::Array{Float64},p::Array{Float64},t::Float64) -> ccall(("diffeqf", $libpath), Cvoid, (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Float64), du, u, p, t)))
+        mk_function(:((du::Array{Float64},u::Array{Float64},p::Array{Float64},t::Float64) -> ccall(("diffeqf", $libpath), Cvoid, (Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Float64), du, u, p, t)))
     end
 
 end
